@@ -75,8 +75,7 @@ def main():
         sns.distplot(random_data["Ran" + variable], kde = False, ax = axes[index, 0], color = 'red')
         axes[index, 0].set(xlabel = variable + " / " + variable + '_imp')
         
-        sns.boxplot(data = pd.concat([dataFile_emptyOutputs[variable], random_data["Ran" + variable]], axis = 1),
-                    ax = axes[index, 1])
+        sns.boxplot(data = pd.concat([dataFile_emptyOutputs[variable], random_data["Ran" + variable]], axis = 1),ax = axes[index, 1])
         
         plt.tight_layout()
     results2 = random_data[["RanTorque","RanMRT"]]
