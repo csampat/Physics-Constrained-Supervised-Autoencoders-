@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def main():
-    dataFile = pd.read_csv('test_data1_WithOutputs_withCalculatedValues.csv')
+    dataFile = pd.read_csv('dataFiles/test_data1_WithOutputs_withCalculatedValues.csv')
     # dataFile = pd.read_csv('test_data1_WithOutputs.csv')
     dataFile_edit = dataFile.drop(['Sr No','Screw Configuration','Experiments','Liq add position'],axis=1)
     screwConfig = dataFile_edit[["Granulator diameter (mm)","L/D Ratio","n KE","nCE"]]
@@ -11,6 +11,7 @@ def main():
     vFree_all = vFreeCalculation(dGran,screwConfig)
     pfnVals = pfnCalc(dataFile_edit)
     calc_fillVals = fillCons(dataFile_edit)
+    calc_fillVals = fillevel_lalith(dataFile_edit)
     exp_fillVals = np.array(dataFile_edit["Exp Fill level"].dropna() / 100)
     fill_diff = np.abs(np.array(calc_fillVals[73:115])-exp_fillVals)
     # percent_fillDiff = np.divide(calc_fillVals-exp_fillVals,calc_fillVals)*100
@@ -33,8 +34,8 @@ def main():
     # print(calc_fillVals)
     granSt = 5e6
     # print(calc_fillVals)
-    dataFile_edit["Lalith fill level"] = fillevel_lalith(dataFile_edit)
-    # dataFile_edit["Calc Fill level"] = calc_fillVals
+    # dataFile_edit["Lalith fill level"] = fillevel_lalith(dataFile_edit)
+    dataFile_edit["Calc Fill level"] = calc_fillVals
     dataFile_edit["Calc Fill volume"] = fillVolume
     dataFile_edit["Torque / Fill Volume"] = np.divide(dataFile_edit["DetTorque"],fillVolume/1e9)
     beta = np.divide(dataFile_edit["DetTorque"],fillVolume/1e9) / granSt
@@ -80,7 +81,7 @@ def fillevel_lalith(dataFile):
     screwConfig = dataFile[["Granulator diameter (mm)","L/D Ratio","n KE","nCE"]]
     dGran = screwConfig["Granulator diameter (mm)"]
     freeVolume,maxVol = vFreeCalculation(dGran,screwConfig)
-    num = np.multiply(freeVolume/1e9,np.multiply(np.multiply((1+dataFile["L/S Ratio"]),dataFile["FlowRate (kg/hr)"]/3600),dataFile["DetMRT"]))
+    num = np.multiply(freeVolume/1e9,np.multiply(dataFile["FlowRate (kg/hr)"]/3600,dataFile["DetMRT"]))
     dem = np.multiply(dataFile["Bulk Density"],np.power(maxVol/1e9,2))
 
     filllevel = np.divide(num,dem)
