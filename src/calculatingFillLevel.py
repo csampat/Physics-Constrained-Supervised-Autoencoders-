@@ -37,6 +37,7 @@ def main():
     # dataFile_edit["Lalith fill level"] = fillevel_lalith(dataFile_edit)
     dataFile_edit["Calc Fill level"] = calc_fillVals
     dataFile_edit["Calc Fill volume"] = fillVolume
+    dataFile_edit["PFNVals"] = pfnVals
     dataFile_edit["Torque / Fill Volume"] = np.divide(dataFile_edit["DetTorque"],fillVolume/1e9)
     beta = np.divide(dataFile_edit["DetTorque"],fillVolume/1e9) / granSt
     lsvis = np.multiply(dataFile_edit["Binder Viscosity (mPa.s)"],dataFile_edit["L/S Ratio"])
