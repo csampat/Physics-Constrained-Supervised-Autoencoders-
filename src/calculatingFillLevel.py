@@ -1,14 +1,17 @@
 import numpy as np
 import pandas as pd 
+import os
 import matplotlib.pyplot as plt
 
 def main():
-    dataFile = pd.read_csv('dataFiles/test_data1_WithOutputs_withCalculatedValues.csv')
-    # dataFile = pd.read_csv('test_data1_WithOutputs.csv')
+    cwd = os.getcwd()
+    files = 'dataFiles/test_data1_WithOutputs_withCalculatedValues.csv'
+    dataFile = pd.read_csv(os.path.join(cwd,files))
+    # dataFile = pd.read_csv('dataFiles/test_data1_WithOutputs.csv')
     dataFile_edit = dataFile.drop(['Sr No','Screw Configuration','Experiments','Liq add position'],axis=1)
     screwConfig = dataFile_edit[["Granulator diameter (mm)","L/D Ratio","n KE","nCE"]]
     dGran = screwConfig["Granulator diameter (mm)"]
-    vFree_all = vFreeCalculation(dGran,screwConfig)
+    vFree_all,v_max_all = vFreeCalculation(dGran,screwConfig)
     pfnVals = pfnCalc(dataFile_edit)
     calc_fillVals = fillCons(dataFile_edit)
     calc_fillVals = fillevel_lalith(dataFile_edit)
@@ -39,6 +42,8 @@ def main():
     dataFile_edit["Calc Fill volume"] = fillVolume
     dataFile_edit["PFNVals"] = pfnVals
     dataFile_edit["Torque / Fill Volume"] = np.divide(dataFile_edit["DetTorque"],fillVolume/1e9)
+    dataFile_edit['Vol free'] = vFree_all
+    dataFile_edit['Vol max'] = v_max_all
     beta = np.divide(dataFile_edit["DetTorque"],fillVolume/1e9) / granSt
     lsvis = np.multiply(dataFile_edit["Binder Viscosity (mPa.s)"],dataFile_edit["L/S Ratio"])
     dataFile_edit["Calc Beta"] = beta
