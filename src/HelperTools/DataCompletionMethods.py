@@ -28,7 +28,7 @@ class DataCompletionMethods:
         At = 2 * self.scalingwithMun(dGran,"Ac",2) - self.scalingwithMun(dGran,"Ae",2)
         v_max = np.multiply(l_eff,At)
         v_shaft = np.multiply(l_eff,self.scalingwithMun(dGran,"As",2))
-        v_elem = screwConfig["n KE"] * self.scalingwithMun(dGran,"Vke",3) + screwConfig["nCE"] * self.scalingwithMun(dGran,"Vspce",3)
+        v_elem = screwConfig["nKE"] * self.scalingwithMun(dGran,"Vke",3) + screwConfig["nCE"] * self.scalingwithMun(dGran,"Vspce",3)
         v_free = v_max - v_shaft - v_elem
 
         return v_free, v_max
@@ -103,35 +103,38 @@ class DataCompletionMethods:
             dataFile_emptyOutputs = self.random_imputation(dataFile_emptyOutputs,feature)
             # mno.matrix(dataFile_emptyOutputs)
             # print(dataFile_emptyOutputs)
-            deter_data = pd.DataFrame(columns = ["Det" + name for name in missing_columns])
+            deter_data = pd.DataFrame(columns = ["Det_" + name for name in missing_columns])
             # dataFile_emptyOutputs = dataFile_emptyOutputs.drop(['Sr No','Screw Configuration','Experiments','Liq add position','Regime','Beta','d50','Exp Fill level'],axis=1)
 
         for feature in missing_columns:
                 
-            deter_data["Det" + feature] = dataFile_emptyOutputs[feature + "_imp"]
+            deter_data["Det_" + feature] = dataFile_emptyOutputs[feature + "_imp"]
             parameters = list(set(dataFile_emptyOutputs.columns) - set(missing_columns) - {feature + '_imp'})
             # print(parameters)
             #Create a Linear Regression model to estimate the missing data
-            model = linear_model.LinearRegression(fit_intercept=False,normalize=False,positive=False)
+            model = linear_model.LinearRegression(fit_intercept=True,normalize=False)
             model.fit(X = dataFile_emptyOutputs[parameters], y = dataFile_emptyOutputs[feature + '_imp'])
             
             #observe that I preserve the index of the missing data from the original dataframe
-            deter_data.loc[dataFile_emptyOutputs[feature].isnull(), "Det" + feature] = model.predict(dataFile_emptyOutputs[parameters])[dataFile_emptyOutputs[feature].isnull()]
+            deter_data.loc[dataFile_emptyOutputs[feature].isnull(), "Det_" + feature] = model.predict(dataFile_emptyOutputs[parameters])[dataFile_emptyOutputs[feature].isnull()]
         
         if(plotflag):
             sns.set()
             fig, axes = plt.subplots(nrows = 2, ncols = 2)
-
+            axes[0, 0].set(ylabel ='Frequency')
+            axes[0, 1].set(ylabel ='Range')
+            axes[1, 0].set(ylabel ='Frequency')
+            axes[1, 1].set(ylabel ='Range')
             for index, variable in enumerate(["Torque","MRT"]):
                 sns.distplot(dataFile_emptyOutputs[variable].dropna(), kde = False, ax = axes[index, 0])
-                sns.distplot(deter_data["Det" + variable], kde = False, ax = axes[index, 0], color = 'red')
+                sns.distplot(deter_data["Det_" + variable], kde = False, ax = axes[index, 0], color = 'red')
                 
-                sns.boxplot(data = pd.concat([dataFile_emptyOutputs[variable], deter_data["Det" + variable]], axis = 1),
+                sns.boxplot(data = pd.concat([dataFile_emptyOutputs[variable], deter_data["Det_" + variable]], axis = 1),
                             ax = axes[index, 1])
                 
             plt.tight_layout()
 
-            results1 = deter_data[["DetTorque","DetMRT"]]
+            results1 = deter_data[["Det_Torque","Det_MRT"]]
             fig.set_size_inches(8, 8)
         return deter_data
 
@@ -143,16 +146,16 @@ class DataCompletionMethods:
             dataFile_emptyOutputs = self.random_imputation(dataFile_emptyOutputs,feature)
             # mno.matrix(dataFile_emptyOutputs)
             # print(dataFile_emptyOutputs)
-            deter_data = pd.DataFrame(columns = ["Det" + name for name in missing_columns])
-            dataFile_emptyOutputs = dataFile_emptyOutputs.drop(['Sr No','Screw Configuration','Experiments','Liq add position','Regime','Beta','d50','Exp Fill level'],axis=1)
-            random_data = pd.DataFrame(columns = ["Ran" + name for name in missing_columns])
+            deter_data = pd.DataFrame(columns = ["Det_" + name for name in missing_columns])
+            # dataFile_emptyOutputs = dataFile_emptyOutputs.drop(['Sr No','Screw Configuration','Experiments','Liq add position','Regime','Beta','d50','Exp Fill level'],axis=1)
+            random_data = pd.DataFrame(columns = ["Ran_" + name for name in missing_columns])
 
         for feature in missing_columns:
                 
-            random_data["Ran" + feature] = dataFile_emptyOutputs[feature + '_imp']
+            random_data["Ran_" + feature] = dataFile_emptyOutputs[feature + '_imp']
             parameters = list(set(dataFile_emptyOutputs.columns) - set(missing_columns) - {feature + '_imp'})
             
-            model1 = linear_model.LinearRegression(fit_intercept=False,normalize=False,positive=False)
+            model1 = linear_model.LinearRegression(fit_intercept=False,normalize=False)
             model1.fit(X = dataFile_emptyOutputs[parameters], y = dataFile_emptyOutputs[feature + '_imp'])
             
             #Standard Error of the regression estimates is equal to std() of the errors of each estimates
@@ -163,25 +166,28 @@ class DataCompletionMethods:
             random_predict = np.random.normal(size = dataFile_emptyOutputs[feature].shape[0], 
                                             loc = predict, 
                                             scale = std_error)
-            random_data.loc[(dataFile_emptyOutputs[feature].isnull()) & (random_predict > 0), "Ran" + feature] = random_predict[(dataFile_emptyOutputs[feature].isnull()) & 
+            random_data.loc[(dataFile_emptyOutputs[feature].isnull()) & (random_predict > 0), "Ran_" + feature] = random_predict[(dataFile_emptyOutputs[feature].isnull()) & 
                                                                                     (random_predict > 0)]
         if(plot_flag):    
             sns.set()
             fig, axes = plt.subplots(nrows = 2, ncols = 2)
             fig.set_size_inches(8, 8)
-
+            axes[0, 0].set(ylabel ='Frequency')
+            axes[0, 1].set(ylabel ='Range')
+            axes[1, 0].set(ylabel ='Frequency')
+            axes[1, 1].set(ylabel ='Range')
             for index, variable in enumerate(["Torque","MRT"]):
                 sns.distplot(dataFile_emptyOutputs[variable].dropna(), kde = False, ax = axes[index, 0])
-                sns.distplot(random_data["Ran" + variable], kde = False, ax = axes[index, 0], color = 'red')
+                sns.distplot(random_data["Ran_" + variable], kde = False, ax = axes[index, 0], color = 'red')
                 axes[index, 0].set(xlabel = variable + " / " + variable + '_imp')
                 
-                sns.boxplot(data = pd.concat([dataFile_emptyOutputs[variable], random_data["Ran" + variable]], axis = 1),ax = axes[index, 1])
+                sns.boxplot(data = pd.concat([dataFile_emptyOutputs[variable], random_data["Ran_" + variable]], axis = 1),ax = axes[index, 1])
                 
                 plt.tight_layout()
-            results2 = random_data[["RanTorque","RanMRT"]]
+            results2 = random_data[["Ran_Torque","Ran_MRT"]]
             dataFile_completedTorque = pd.concat([dataFile_emptyOutputs,results2])
-            print(dataFile_completedTorque[["Torque","Torque_imp","RanTorque",\
-                "MRT","MRT_imp","RanMRT"]].describe().T)
+            print(dataFile_completedTorque[["Torque","Torque_imp","Ran_Torque",\
+                "MRT","MRT_imp","Ran_MRT"]].describe().T)
             dataFile_completedTorque.to_csv('completed_random.csv')
             plt.show()
         return random_data
