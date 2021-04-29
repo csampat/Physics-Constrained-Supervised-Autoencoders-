@@ -25,24 +25,24 @@ def main():
     "nodes_lv_layer"         : 1, 
     "nodes_enc_layer"        : 4,
     "nodes_pp_enc_layer"     : 2,
-    "nodes_geo_enc_layer"    : 4,
-    "nodes_mat_enc_layer"    : 4,
-    "nodes_dec_layers"       : 4,
-    "nodes_predec_layers"    : 4,
+    "nodes_geo_enc_layer"    : 5,
+    "nodes_mat_enc_layer"    : 2,
+    "nodes_dec_layers"       : 8,
+    "nodes_predec_layers"    : 6,
     "inner_layer_actFcn"     : 'tanh',
     "encod_layer_actFcn"     : 'tanh',
     "decod_layer_actFcn"     : 'tanh',
-    "output_layer_actFcn"    : 'linear',
-    "sup_layer_actFcn"       : 'linear',
-    "optimizer_sup"          :  Adam,
-    "optimizer_unsup"        : "adadelta",
-    "learning_rate"          : 0.005,
+    "output_layer_actFcn"    : 'sigmoid',
+    "sup_layer_actFcn"       : 'tanh',
+    "optimizer_sup"          : Adam,
+    "optimizer_unsup"        : Adadelta,
+    "learning_rate"          : 0.008,
     "loss_sup"               : 'mse',
     "loss_unsup"             : 'mse',
-    "n_epochs"               : 200,
+    "n_epochs"               : 600,
     "shuffle_flag"           : False,
-    "val_split"              : 0.25,
-    "verbose"                : 1
+    "val_split"              : 0.33,
+    "verbose"                : 0
     }
 
     #creating class objects
@@ -69,7 +69,7 @@ def main():
     
     
     r2_ypre = sae_obj.calculateR2(np.ravel(predictions_y_AE[1]),test_labels.values,labels)
-    r2_ypre = sae_obj.calculateR2(np.ravel(predictions_y_AE[0]),test_all,x_headers)
+    r2_recons = sae_obj.calculateR2(np.ravel(predictions_y_AE[0]),test_all,x_headers)
 
     print(r2_ypre)
 
@@ -96,7 +96,8 @@ def main():
         ranges,titles,label_pp,label_geo,i_pp,i_geo)
     
     print("\n--------- Performance--------\n")
-    print("R^2 for prediction = ",r2_ypre)
+    print("R^2 for prediction     = ",r2_ypre)
+    print("R^2 for reconstruction = ",r2_recons)
 
     
     plt.show()
