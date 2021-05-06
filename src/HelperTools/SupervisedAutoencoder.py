@@ -241,7 +241,7 @@ class SupervisedAutoencoder:
         decoder_recons = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons1')(concat_bottleneck)
 
         # output prediction decoder layer 1 
-        decoder_pred = Dense(params["nodes_predec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred1')(concat_bottleneck)
+        decoder_pred = Dense(params["nodes_predec_layer_1"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred1')(concat_bottleneck)
 
         # output layer reconstruction
         output_recons = Dense(train_all.shape[1],activation=params["output_layer_actFcn"],name='recon_out')(decoder_recons)
@@ -265,6 +265,72 @@ class SupervisedAutoencoder:
 
         return history, autoencoder, hidden_representation
 
+
+    def sup_3lv_ae_2hiddenpre(self,train_datafile):
+        # collect preprocessed data
+        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all = self.dataPreprocessing_3lv(train_datafile)
+        # test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, mms_geo_test, mms_mat_test, mms_all_test = self.dataPreprocessing_3lv(test_datafile)
+        
+        params = self.parameters
+        
+        # start the autoencoder 
+        ##LV for Process Parameters
+        
+        input_pp = Input(shape=(train_pp.shape[1],))
+        #hidden layer
+        hidden_pp1 = Dense(params["nodes_pp_enc_layer"],activation=params["inner_layer_actFcn"],name='hid_layer_pp1')(input_pp)
+        # bottleneck layer
+        encoder_pp = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_pp')(hidden_pp1)
+
+
+        ##LV for Material Properties
+        input_mat = Input(shape=(train_mat.shape[1],))
+        #hidden layer
+        hidden_mat = Dense(params["nodes_mat_enc_layer"],activation=params["inner_layer_actFcn"],name='hid_layer_mat')(input_mat)
+        # bottleneck layer
+        encoder_mat = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_mat')(hidden_mat)
+
+        ##LV for Geometry
+        input_geo = Input(shape=(train_geo.shape[1],))
+        #hidden layer
+        hidden_geo = Dense(params["nodes_geo_enc_layer"],activation=params["decod_layer_actFcn"],name='hid_layer_geo')(input_geo)
+        # bottleneck layer
+        encoder_geo = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_geo')(hidden_geo)
+
+        concat_bottleneck = Concatenate()([encoder_pp,encoder_mat,encoder_geo])
+        
+        # recons decoder layer 1
+        decoder_recons_1 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons1')(concat_bottleneck)
+        decoder_recons_2 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons2')(decoder_recons_1)
+
+        # output prediction decoder layer 1 
+        decoder_pred_1 = Dense(params["nodes_predec_layer_1"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred1')(concat_bottleneck)
+        # output prediction decoder layer 2
+        decoder_pred_2 = Dense(params["nodes_predec_layer_2"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred2')(decoder_pred_1)
+        # output prediction decoder layer 3
+        decoder_pred_2 = Dense(params["nodes_predec_layer_2"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred3')(decoder_pred_2)
+
+        # output layer reconstruction
+        output_recons = Dense(train_all.shape[1],activation=params["output_layer_actFcn"],name='recon_out')(decoder_recons_2)
+        output_pred = Dense(train_labels.shape[1],activation=params["sup_layer_actFcn"],name='pred_out')(decoder_pred_3)
+
+        autoencoder = Model([input_pp,input_mat,input_geo],[output_recons,output_pred])
+        autoencoder.compile(optimizer=params['optimizer_sup'](learning_rate=params['learning_rate']),loss=params['loss_sup'],metrics=['mse','mae'])
+
+        history = autoencoder.fit([train_pp,train_mat,train_geo],[train_all,train_labels],epochs=params['n_epochs'], shuffle=True,validation_split=params['val_split'],verbose=params['verbose'])
+
+        # autoencoder.summary()
+
+        # predictions_y_AE = autoencoder.predict([test_pp,test_mat,test_geo])
+
+        # Getting the hidden representation of the 
+        hidden_representation = Model([input_pp,input_mat,input_geo],[encoder_pp,encoder_mat,encoder_geo])
+    
+        # hidden_representation_3.summary()
+        # latent_rep = np.array(hidden_representation.predict([datafile_processparam,datafile_material,datafile_geometry]))
+        # hidden_representation_3.summary()
+
+        return history, autoencoder, hidden_representation
 
     def dataPreprocessing_3lv(self,train_datafile):
         #data preprocessing for training data
@@ -362,10 +428,10 @@ class SupervisedAutoencoder:
         ax[1].set_xlabel(xlabels)
         ax[1].set_ylabel(ylabels)
         ax[1].set_title(titles[1])
-        fig.set_size_inches(15,5)
-        fig.suptitle('3 latent space representation',fontsize=16)
+        fig.set_size_inches(12,8)
+        fig.suptitle('3 latent space representation',fontsize=14)
         ax[1].legend(bbox_to_anchor=(0., -0.5, 1., .102), loc='lower left',
-                ncol=3, mode="expand", borderaxespad=0)
+                ncol=2, mode="expand", borderaxespad=0)
         
         train_dataset_copy['Calc Fill level'] = para3
         groups = train_dataset_copy.groupby(pd.cut(train_dataset_copy['Calc Fill level'],range2))
@@ -376,12 +442,13 @@ class SupervisedAutoencoder:
         ax[2].set_title(titles[2])
         ax[2].legend(bbox_to_anchor=(0., -0.5, 1., .102), loc='lower left',
                 ncol=2, mode="expand", borderaxespad=0.)
+        plt.tight_layout()
 
 
     def plot_all3_range1_un2(self,latent_rep,train_dataset,para1,para2,para3,range1,titles,xlabels,ylabels,i1,i2):
         fig,ax = plt.subplots(1,3,sharey=True)
-        fig.set_size_inches(15,5)
-        fig.suptitle('3 latent space representation',fontsize=16)
+        fig.set_size_inches(12,8)
+        fig.suptitle('3 latent space representation',fontsize=14)
 
         for g in np.unique(para1):
             i = np.where(para1==g)
@@ -400,7 +467,7 @@ class SupervisedAutoencoder:
         ax[1].set_ylabel(ylabels)
         ax[1].set_title(titles[1])
         ax[1].legend(bbox_to_anchor=(0., -0.5, 1., .102), loc='lower left',
-                ncol=3, mode="expand", borderaxespad=0)
+                ncol=2, mode="expand", borderaxespad=0)
         
         train_dataset_copy['Extent of gran'] = para3
         train_dataset_copy['LV 1'] = latent_rep[:,i1]
@@ -413,3 +480,4 @@ class SupervisedAutoencoder:
         ax[2].set_title(titles[2])
         ax[2].legend(bbox_to_anchor=(0., -0.5, 1., .102), loc='lower left',
                 ncol=2, mode="expand", borderaxespad=0.)
+        plt.tight_layout()
