@@ -32,6 +32,9 @@ from keras import regularizers
 from keras.layers import Dense, Input, Concatenate
 from keras.models import Sequential, Model
 
+from tensorflow.python.framework.ops import disable_eager_execution
+
+
 from numpy import unique, where
 from .DataCompletionMethods import DataCompletionMethods
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
@@ -39,15 +42,19 @@ from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
+import keras.backend as K
+import tensorflow as tf
 
 
 class SupervisedAutoencoder:
 
     # define init 
-    def __init__(self,parameters):
+    def __init__(self,parameters,incompleteFile):
+        self.incomplete_datafile = incompleteFile
         self.parameters=parameters
-
+        self.incomplete_datafile = self.incomplete_datafile.drop(['Regime','Experiments','Year','DetTorque','RanTorque','RanMRT','DetMRT','Screw Configuration','Liq add position'],axis=1)
+        disable_eager_execution()
+######## NON _PHYSICS MODELS ####################
     # single unsupervised layer autoencoder
 
     def unsup_one_ae(self,train_dataset,fit_flag):
@@ -308,7 +315,7 @@ class SupervisedAutoencoder:
         # output prediction decoder layer 2
         decoder_pred_2 = Dense(params["nodes_predec_layer_2"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred2')(decoder_pred_1)
         # output prediction decoder layer 3
-        decoder_pred_2 = Dense(params["nodes_predec_layer_2"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred3')(decoder_pred_2)
+        decoder_pred_3 = Dense(params["nodes_predec_layer_2"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred3')(decoder_pred_2)
 
         # output layer reconstruction
         output_recons = Dense(train_all.shape[1],activation=params["output_layer_actFcn"],name='recon_out')(decoder_recons_2)
@@ -332,6 +339,172 @@ class SupervisedAutoencoder:
 
         return history, autoencoder, hidden_representation
 
+####### PCSA ########################
+
+    def sup_3lv_ae_2hiddenpre_physicsConstrained(self,train_datafile):
+        # collect preprocessed data
+        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all,  mrt_lim, torque_lim, d50_lim = self.dataPreprocessing_3lv(train_datafile)
+        # test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, mms_geo_test, mms_mat_test, mms_all_test = self.dataPreprocessing_3lv(test_datafile)
+        
+        params = self.parameters
+        
+        # start the autoencoder 
+        ##LV for Process Parameters
+        
+        input_pp = Input(shape=(train_pp.shape[1],))
+        #hidden layer
+        hidden_pp1 = Dense(params["nodes_pp_enc_layer"],activation=params["inner_layer_actFcn"],name='hid_layer_pp1')(input_pp)
+        # bottleneck layer
+        encoder_pp = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_pp')(hidden_pp1)
+
+
+        ##LV for Material Properties
+        input_mat = Input(shape=(train_mat.shape[1],))
+        #hidden layer
+        hidden_mat = Dense(params["nodes_mat_enc_layer"],activation=params["inner_layer_actFcn"],name='hid_layer_mat')(input_mat)
+        # bottleneck layer
+        encoder_mat = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_mat')(hidden_mat)
+
+        ##LV for Geometry
+        input_geo = Input(shape=(train_geo.shape[1],))
+        #hidden layer
+        hidden_geo = Dense(params["nodes_geo_enc_layer"],activation=params["decod_layer_actFcn"],name='hid_layer_geo')(input_geo)
+        # bottleneck layer
+        encoder_geo = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_geo')(hidden_geo)
+
+        # Creating input layer to pass limits to the custom loss function
+        input_mrt_lim = Input(shape=1)#(mrt_lim.shape[1],))
+        input_tor_lim = Input(shape=1)#(torque_lim.shape[1],))
+        input_d50_lim = Input(shape=1)#(d50_lim.shape[1],))
+
+        concat_bottleneck = Concatenate()([encoder_pp,encoder_mat,encoder_geo])
+        
+        # recons decoder layer 1
+        decoder_recons_1 = Dense(7,activation=params["decod_layer_actFcn"],name='decoder_layer_recons1')(concat_bottleneck)
+        # decoder_recons_2 = Dense(8,activation=params["decod_layer_actFcn"],name='decoder_layer_recons2')(decoder_recons_1)
+        # decoder_recons_3 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons3')(decoder_recons_2)
+
+        # output prediction decoder layer 1 
+        decoder_pred_1 = Dense(params["nodes_predec_layer_1"],activation=params["decod_layer_actFcn_pre"],name='decoder_layer_pred1')(concat_bottleneck)
+        # output prediction decoder layer 2
+        decoder_pred_2 = Dense(params["nodes_predec_layer_2"],activation=params["decod_layer_actFcn_pre"],name='decoder_layer_pred2')(decoder_pred_1)
+        # output prediction decoder layer 3
+        # decoder_pred_3 = Dense(params["nodes_predec_layer_3"],activation=params["decod_layer_actFcn_pre"],name='decoder_layer_pred3')(decoder_pred_2)
+        # # # # output prediction decoder layer 4
+        # decoder_pred_4 = Dense(params["nodes_predec_layer_4"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred4')(decoder_pred_3)
+
+        # output layer reconstruction
+        output_recons = Dense(train_all.shape[1],activation=params["output_layer_actFcn"],name='recon_out')(decoder_recons_1)
+        output_pred = Dense(train_labels.shape[1],activation=params["sup_layer_actFcn"],name='pred_out')(decoder_pred_2)
+
+        autoencoder = Model([input_pp,input_mat,input_geo,input_mrt_lim,input_tor_lim,input_d50_lim],[output_recons,output_pred])
+
+        autoencoder.summary()
+        losses = {'recon_out': 'mse', 'pred_out':self.lossFunc_allLims(output_pred[:,1],output_pred[:,0],output_pred[:,2],input_mrt_lim,input_tor_lim,input_d50_lim)}
+        autoencoder.compile(optimizer=params['optimizer_sup'](learning_rate=params['learning_rate']),loss=losses,loss_weights=[1,2],metrics=['mse','mae'],experimental_run_tf_function=False)
+
+        history = autoencoder.fit([train_pp,train_mat,train_geo,mrt_lim, torque_lim, d50_lim],[train_all,train_labels],epochs=params['n_epochs'], shuffle=False,validation_split=params['val_split'],verbose=params['verbose'],use_multiprocessing=True)
+
+        
+
+        # predictions_y_AE = autoencoder.predict([test_pp,test_mat,test_geo])
+
+        # Getting the hidden representation of the 
+        hidden_representation = Model([input_pp,input_mat,input_geo,input_mrt_lim,input_tor_lim,input_d50_lim],[encoder_pp,encoder_mat,encoder_geo])
+    
+        # hidden_representation_3.summary()
+        # latent_rep = np.array(hidden_representation.predict([datafile_processparam,datafile_material,datafile_geometry]))
+        # hidden_representation_3.summary()
+
+        return history, autoencoder, hidden_representation
+
+
+############# PHYSICS CALCULATIONS ##################
+
+    def calculatinglimits_mrt(self,datafile):
+       
+        datafile_all = datafile
+        dcm_obj = DataCompletionMethods(self.incomplete_datafile)
+        # creating limits for MRT using only CE elements
+        # create regression model using data 
+        pred_data, model_ran = dcm_obj.randomImputationRegression(['Torque','MRT'],False)
+        # make all CE 0 and re-predict MRT
+        datafile_all.loc[:,'nKE'] = np.zeros(len(datafile_all))
+        datafile_all.loc[:,'nCE'] = datafile_all['L/D Ratio'].values
+        datafile_all['Torque_imp'] = pred_data['Ran_Torque']
+        datafile_all['MRT_imp'] = pred_data['Ran_MRT']
+        # datafile_all = self.random_imputation(datafile_all,["Torque"])
+        # datafile_all = self.random_imputation(datafile_all,["MRT"])
+
+        parameters = list(set(datafile_all.columns) - set(['Torque','MRT','Liq add Position']))
+        # parameters = list(set(datafile_all.columns) - set(['Liq add Position']))
+        # parameters.remove('Torque_imp')
+        mrt_lim = model_ran.predict(MinMaxScaler().fit_transform(datafile_all[parameters])) / 200
+
+        return mrt_lim
+
+
+    def calculatinglimits_torqueandd50(self,train_pp,train_mat,train_geo):
+        # creating limits for torque
+        dcm_obj = DataCompletionMethods(self.incomplete_datafile)
+        scaled_h = dcm_obj.scalingwithMun(np.array(train_geo['Granulator diameter (mm)']),"As",1)
+        # 10 added to scale according to the scaling of labels
+        peak_shear_rate = (np.pi / (60.0 * 20.0)) * np.divide(np.multiply(train_geo["Granulator diameter (mm)"],train_pp['RPM']),scaled_h)
+
+        d50_max = np.array(train_mat['Initial d50']  * 60) / 1e6
+
+        # lim_torque_d50 = np.concatenate([peak_shear_rate,d50_max],axis=0)
+        return peak_shear_rate, d50_max
+
+    def lossFunc_allLims(self,output_mrt,output_torque,output_d50,input_mrt_lim,input_tor_lim,input_d50_lim):
+        def loss(yTrue,yPred):
+                        
+                        # c = K.cast_to_floatx(np.multiply(Ys,b))
+            # d = K.cast_to_floatx(np.full(len(Uc),(0.1)))
+            # rho_comp = K.cast_to_floatx(np.divide(np.divide(d,c),1e3))
+            
+            # rho_l = rho_comp - output_1
+            # rho_l = rho_l[rho_l < 0]
+            # length = K.shape(rho_l)[0]
+
+            mrt_com = output_mrt - input_mrt_lim
+            # mrt_com = output_mrt - 0.3
+            mrt_com = mrt_com[mrt_com < 0]
+            
+            tor_com = input_tor_lim - output_torque
+            # tor_com = 0.5 - output_torque
+            tor_com = tor_com[tor_com < 0]
+            
+            d50_com = input_d50_lim - output_d50
+            # d50_com = 1 - output_d50
+            d50_com = d50_com[d50_com < 0]
+            
+            # length = K.cast(length,K.floatx())
+            # length = K.reshape(length,(1,1))
+            # length = K.shape(yTrue)[0]
+            # length = K.cast(length,K.floatx())
+            # mrt_com = K.reshape(mrt_com,(length,1))
+
+            addError_mrt = K.sum(K.square(mrt_com))
+            addError_tor = K.sum(K.square(tor_com))
+            addError_d50 = K.sum(K.square(d50_com))
+
+            # print(K.shape(yTrue)[1])
+            # print(K.shape(yPred)[1])
+            # print(K.shape(addError_mrt))
+            # print(K.shape(addError_tor))
+            # print(K.shape(addError_d50))
+
+            # stde_output = K.dot(output_1,K.transpose(c))
+            # stde_comp = stde_output - d
+            # stde_v = stde_comp[stde_comp > 0]
+
+            # addError = k.mean(stde_v)
+                    
+            return K.mean(K.square(yTrue - yPred),axis=0) + addError_mrt + addError_tor + addError_d50
+        return loss    
+
+############### Data PREPROCESSING #################
     def dataPreprocessing_3lv(self,train_datafile):
         #data preprocessing for training data
         datafile_processparam = train_datafile[['RPM','L/S Ratio','FlowRate (kg/hr)', 'Temperature']]
@@ -340,7 +513,7 @@ class SupervisedAutoencoder:
         datafile_allinputs    = train_datafile[['RPM','L/S Ratio','FlowRate (kg/hr)', 'Temperature','Initial d50','Binder Viscosity (mPa.s)','Flowability (HR)','Bulk Density','nCE','Granulator diameter (mm)','L/D Ratio','SA of KE','nKE','Liq add position','nKZ','dKZ']]
         
         
-        train_labels          = train_datafile[['DetTorque','RanMRT','final d50']]
+        train_labels              = train_datafile[['DetTorque','RanMRT','final d50']]
         train_labels['final d50'] = train_labels['final d50'] / 1e6
         train_labels['DetTorque'] = train_labels['DetTorque'] / 10
         train_labels['RanMRT']    = train_labels['RanMRT'] / 100
@@ -356,12 +529,27 @@ class SupervisedAutoencoder:
         mms_mat    = MinMaxScaler()
         mms_all    = MinMaxScaler()
 
-        datafile_material     = mms_mat.fit_transform(datafile_material)
-        datafile_processparam = mms_pp.fit_transform(datafile_processparam)
-        datafile_geometry     = mms_geo.fit_transform(datafile_geometry)
-        datafile_allinputs    = mms_all.fit_transform(datafile_allinputs)
+        scaled_datafile_material     = mms_mat.fit_transform(datafile_material)
+        scaled_datafile_processparam = mms_pp.fit_transform(datafile_processparam)
+        scaled_datafile_geometry     = mms_geo.fit_transform(datafile_geometry)
+        scaled_datafile_allinputs    = mms_all.fit_transform(datafile_allinputs)
 
-        return datafile_material, datafile_processparam, datafile_geometry, datafile_allinputs, train_labels, mms_pp, mms_geo, mms_mat, mms_all
+        # calling the limit functions here since cannot be computed in custom loss
+        # can be passed as a separate input layer in keras
+        mrt_lim = self.calculatinglimits_mrt(datafile_allinputs)
+            
+        torque_lim , d50_lim = self.calculatinglimits_torqueandd50(datafile_processparam,datafile_material,datafile_geometry)
+
+        return scaled_datafile_material, scaled_datafile_processparam, scaled_datafile_geometry, scaled_datafile_allinputs, train_labels, mms_pp, mms_geo, mms_mat, mms_all, mrt_lim, torque_lim, d50_lim
+
+    def random_imputation(self,df, feature):
+        number_missing = df[feature].isnull().sum()
+        observed_values = df.loc[df[feature].notnull(), feature]
+        df.loc[df[feature].isnull(), feature + '_imp'] = np.random.choice(observed_values, number_missing, replace = True)
+        
+        return df
+
+#### METRICS AND PLOTS #####
 
     def calculateR2(self, y_predicted, y_true, labels):
         # labels = ['Granule_Density','Bin1','Bin2','Bin3','Bin4','Bin5','Bin6','Bin7','Coarse']

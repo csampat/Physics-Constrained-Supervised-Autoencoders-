@@ -136,7 +136,7 @@ class DataCompletionMethods:
 
             results1 = deter_data[["Det_Torque","Det_MRT"]]
             fig.set_size_inches(8, 8)
-        return deter_data
+        return deter_data, model
 
 ##### Stochastic Data completion
     def randomImputationRegression(self,missing_columns,plot_flag):
@@ -154,8 +154,8 @@ class DataCompletionMethods:
                 
             random_data["Ran_" + feature] = dataFile_emptyOutputs[feature + '_imp']
             parameters = list(set(dataFile_emptyOutputs.columns) - set(missing_columns) - {feature + '_imp'})
-            
-            model1 = linear_model.LinearRegression(fit_intercept=False,normalize=False)
+            # print(parameters)
+            model1 = linear_model.LinearRegression(fit_intercept=False,normalize=True)
             model1.fit(X = dataFile_emptyOutputs[parameters], y = dataFile_emptyOutputs[feature + '_imp'])
             
             #Standard Error of the regression estimates is equal to std() of the errors of each estimates
@@ -190,7 +190,7 @@ class DataCompletionMethods:
                 "MRT","MRT_imp","Ran_MRT"]].describe().T)
             dataFile_completedTorque.to_csv('completed_random.csv')
             plt.show()
-        return random_data
+        return random_data, model1
     
     def random_imputation(self,df, feature):
         number_missing = df[feature].isnull().sum()
