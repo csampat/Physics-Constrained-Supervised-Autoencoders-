@@ -275,7 +275,7 @@ class SupervisedAutoencoder:
 
     def sup_3lv_ae_2hiddenpre(self,train_datafile):
         # collect preprocessed data
-        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all = self.dataPreprocessing_3lv(train_datafile)
+        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all,  mrt_lim, torque_lim, d50_lim = self.dataPreprocessing_3lv(train_datafile)
         # test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, mms_geo_test, mms_mat_test, mms_all_test = self.dataPreprocessing_3lv(test_datafile)
         
         params = self.parameters
@@ -323,8 +323,8 @@ class SupervisedAutoencoder:
 
         autoencoder = Model([input_pp,input_mat,input_geo],[output_recons,output_pred])
         autoencoder.compile(optimizer=params['optimizer_sup'](learning_rate=params['learning_rate']),loss=params['loss_sup'],metrics=['mse','mae'])
-
-        history = autoencoder.fit([train_pp,train_mat,train_geo],[train_all,train_labels],epochs=params['n_epochs'], shuffle=True,validation_split=params['val_split'],verbose=params['verbose'])
+        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=50)
+        history = autoencoder.fit([train_pp,train_mat,train_geo],[train_all,train_labels],epochs=params['n_epochs'], shuffle=True,validation_split=params['val_split'],verbose=params['verbose'],callbacks=[callback])
 
         # autoencoder.summary()
 
@@ -380,8 +380,8 @@ class SupervisedAutoencoder:
         concat_bottleneck = Concatenate()([encoder_pp,encoder_mat,encoder_geo])
         
         # recons decoder layer 1
-        decoder_recons_1 = Dense(7,activation=params["decod_layer_actFcn"],name='decoder_layer_recons1')(concat_bottleneck)
-        # decoder_recons_2 = Dense(8,activation=params["decod_layer_actFcn"],name='decoder_layer_recons2')(decoder_recons_1)
+        decoder_recons_1 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons1')(concat_bottleneck)
+        decoder_recons_2 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons2')(decoder_recons_1)
         # decoder_recons_3 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons3')(decoder_recons_2)
 
         # output prediction decoder layer 1 
@@ -394,7 +394,7 @@ class SupervisedAutoencoder:
         # decoder_pred_4 = Dense(params["nodes_predec_layer_4"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred4')(decoder_pred_3)
 
         # output layer reconstruction
-        output_recons = Dense(train_all.shape[1],activation=params["output_layer_actFcn"],name='recon_out')(decoder_recons_1)
+        output_recons = Dense(train_all.shape[1],activation=params["output_layer_actFcn"],name='recon_out')(decoder_recons_2)
         output_pred = Dense(train_labels.shape[1],activation=params["sup_layer_actFcn"],name='pred_out')(decoder_pred_2)
 
         autoencoder = Model([input_pp,input_mat,input_geo,input_mrt_lim,input_tor_lim,input_d50_lim],[output_recons,output_pred])
@@ -402,8 +402,8 @@ class SupervisedAutoencoder:
         autoencoder.summary()
         losses = {'recon_out': 'mse', 'pred_out':self.lossFunc_allLims(output_pred[:,1],output_pred[:,0],output_pred[:,2],input_mrt_lim,input_tor_lim,input_d50_lim)}
         autoencoder.compile(optimizer=params['optimizer_sup'](learning_rate=params['learning_rate']),loss=losses,loss_weights=[1,2],metrics=['mse','mae'],experimental_run_tf_function=False)
-
-        history = autoencoder.fit([train_pp,train_mat,train_geo,mrt_lim, torque_lim, d50_lim],[train_all,train_labels],epochs=params['n_epochs'], shuffle=False,validation_split=params['val_split'],verbose=params['verbose'],use_multiprocessing=True)
+        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=1000)
+        history = autoencoder.fit([train_pp,train_mat,train_geo,mrt_lim, torque_lim, d50_lim],[train_all,train_labels],epochs=params['n_epochs'], shuffle=False,validation_split=params['val_split'],verbose=params['verbose'],use_multiprocessing=True,callbacks=[callback])
 
         
 
@@ -439,7 +439,7 @@ class SupervisedAutoencoder:
         parameters = list(set(datafile_all.columns) - set(['Torque','MRT','Liq add Position']))
         # parameters = list(set(datafile_all.columns) - set(['Liq add Position']))
         # parameters.remove('Torque_imp')
-        mrt_lim = model_ran.predict(MinMaxScaler().fit_transform(datafile_all[parameters])) / 200
+        mrt_lim = model_ran.predict(MinMaxScaler().fit_transform(datafile_all[parameters])) / 100
 
         return mrt_lim
 
@@ -449,7 +449,7 @@ class SupervisedAutoencoder:
         dcm_obj = DataCompletionMethods(self.incomplete_datafile)
         scaled_h = dcm_obj.scalingwithMun(np.array(train_geo['Granulator diameter (mm)']),"As",1)
         # 10 added to scale according to the scaling of labels
-        peak_shear_rate = (np.pi / (60.0 * 20.0)) * np.divide(np.multiply(train_geo["Granulator diameter (mm)"],train_pp['RPM']),scaled_h)
+        peak_shear_rate = ((np.pi*1.3) / (60.0 * 10.0)) * np.divide(np.multiply(train_geo["Granulator diameter (mm)"],train_pp['RPM']),scaled_h)
 
         d50_max = np.array(train_mat['Initial d50']  * 60) / 1e6
 
@@ -501,7 +501,7 @@ class SupervisedAutoencoder:
 
             # addError = k.mean(stde_v)
                     
-            return K.mean(K.square(yTrue - yPred),axis=0) + addError_mrt + addError_tor + addError_d50
+            return K.mean(K.square(yTrue - yPred)) + addError_mrt + addError_tor + addError_d50
         return loss    
 
 ############### Data PREPROCESSING #################
