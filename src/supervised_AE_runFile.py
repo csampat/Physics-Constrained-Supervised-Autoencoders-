@@ -13,6 +13,7 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from sklearn.cluster import KMeans, DBSCAN
 from keras.optimizers import Adam, Adadelta, SGD, Nadam, RMSprop, Adagrad
+from sklearn.svm import SVC
 import os
 import json
 
@@ -133,10 +134,12 @@ def main():
     label_pp = 'PP'
     label_mat = 'Mat'
     label_geo = 'Geo'
-
+    
+    svm_planes_3d(dataFile_original,latent_rep,'PCSAE','linear')
+    plt.show()
     # sae_3lv_unc.save('./SAEmodel')
     # sae_3lv.save('./PCSAEmodel')
-
+'''
     plot_all = sae_obj.plot_all3_range1_un2(latent_rep,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
         ranges,titles,label_pp,label_mat,i_pp,i_mat)
     plot_all = sae_obj.plot_all3_range1_un2(latent_rep,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
@@ -216,7 +219,10 @@ def main():
     input_parameter_sensitivity_lv(hr_3lv_unc,[samplesize_pp,samplesize_mat,samplesize_geo],[headers_pp,headers_mat,headers_geo],False)
 
     input_parameter_sensitivity_lv_phycon(hr_3lv,[samplesize_pp,samplesize_mat,samplesize_geo],[headers_pp,headers_mat,headers_geo], mrt_lim_all, torque_lim_all, d50_lim_all,False)
+    
     plt.show()
+    '''
+    
 
 
 def cluster_kmeans_3d(datafile,latent_vars,title):
@@ -236,10 +242,51 @@ def cluster_kmeans_3d(datafile,latent_vars,title):
         ax.scatter(latent_vars[row_ix,0],latent_vars[row_ix,1],latent_vars[row_ix,2],label=cluster)
     ax.set_xlabel('PP LS')
     ax.set_ylabel('MAT LS')
-    ax.set_zlabel('GEo LS')
+    ax.set_zlabel('Geo LS')
     ax.set_title(title)
     ax.legend()
 
+def svm_planes_3d(datafile,latent_vars,title,kernel_type):
+    y_reg = datafile['Regime']
+    clus_regimes_exp = np.unique(y_reg)
+    n_clus_regimes = len(clus_regimes_exp)
+
+    model = SVC(C=0.96,kernel=kernel_type,decision_function_shape='ovo',tol=1e-6,probability=True)
+    clf = model.fit(latent_vars,y_reg)
+    
+    # Making lambda functions for plotting hyperplanes
+    z1 = lambda x,y: (-clf.intercept_[0]-clf.coef_[0][0]*x -clf.coef_[0][1]*y) / clf.coef_[0][2]
+    z2 = lambda x,y: (-clf.intercept_[1]-clf.coef_[1][0]*x -clf.coef_[1][1]*y) / clf.coef_[1][2]
+    z3 = lambda x,y: (-clf.intercept_[2]-clf.coef_[2][0]*x -clf.coef_[2][1]*y) / clf.coef_[2][2]
+    z4 = lambda x,y: (-clf.intercept_[3]-clf.coef_[3][0]*x -clf.coef_[3][1]*y) / clf.coef_[3][2]
+
+    tmp1 = np.linspace(min(latent_vars[:,0]),max(latent_vars[:,0]),50)
+    tmp2 = np.linspace(min(latent_vars[:,1]),max(latent_vars[:,1]),50)
+    # tmp = np.linspace(-1,1,50)
+    x,y = np.meshgrid(tmp1,tmp2)
+    print(clf.predict_log_proba(latent_vars))
+
+    fig = plt.figure()
+    ax  = fig.add_subplot(111, projection='3d')
+    for cluster in clus_regimes_exp:
+	# get row indexes for samples with this cluster
+        row_ix = np.where(y_reg == cluster)
+	# create scatter of these samples
+        ax.scatter(latent_vars[row_ix,0],latent_vars[row_ix,1],latent_vars[row_ix,2],label=cluster)
+    
+    ax.plot_surface(x,y,z1(x,y),alpha=0.3)
+    ax.plot_surface(x,y,z2(x,y),alpha=0.3)
+    ax.plot_surface(x,y,z3(x,y),alpha=0.3)
+    # ax.plot_surface(x,y,z4(x,y),alpha=0.4)
+
+    ax.set_xlabel('PP LS')
+    ax.set_xlim(min(latent_vars[:,0]),max(latent_vars[:,0]))
+    ax.set_ylabel('Mat LS')
+    ax.set_ylim(min(latent_vars[:,1]),max(latent_vars[:,1]))
+    ax.set_zlabel('Geo LS')
+    ax.set_zlim(min(latent_vars[:,2]),max(latent_vars[:,2]))
+    ax.set_title(title)
+    ax.legend()
 
 
     
