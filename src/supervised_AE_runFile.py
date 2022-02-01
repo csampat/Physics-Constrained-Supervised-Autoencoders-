@@ -36,7 +36,7 @@ def main():
     "nodes_geo_enc_layer"    : 4,
     "nodes_mat_enc_layer"    : 4,
     "nodes_dec_layers"       : 8,
-    "nodes_predec_layer_1"   : 5,
+    "nodes_predec_layer_1"   : 4,
     "nodes_predec_layer_2"   : 4,
     "nodes_predec_layer_3"   : 4,
     "nodes_predec_layer_4"   : 4,
@@ -44,17 +44,17 @@ def main():
     "encod_layer_actFcn"     : 'tanh',
     "decod_layer_actFcn"     : 'tanh',
     "decod_layer_actFcn_pre" : 'tanh',
-    "output_layer_actFcn"    : 'relu',
+    "output_layer_actFcn"    : 'linear',
     "sup_layer_actFcn"       : 'linear',
     "optimizer_sup"          : Adam,
     "optimizer_unsup"        : Adadelta,
-    "learning_rate"          : 0.01,
-    "loss_sup"               : 'mse',
+    "learning_rate"          : 0.0004,
+    "loss_sup"               : 'mae',
     "loss_unsup"             : 'mse',
-    "n_epochs"               : 2500,
+    "n_epochs"               : 4000,
     "shuffle_flag"           : False,
-    "val_split"              : 0.33,
-    "verbose"                : 2
+    "val_split"              : 0.4,
+    "verbose"                : 0
     }
 
     #creating class objects
@@ -65,6 +65,7 @@ def main():
     test_datafile = dataFile_original.drop(train_datafile.index)
     sae1_name = 'Supervised Autoencoder'
     sae2_pc_name = 'Supervised Physics Constrained Autoencoder'
+    sae3_pcmrt2_name = 'Supervised Physics Constrained Autoencoder with 2 MRT limits'
 
     # mrt_lim = np.abs(sae_obj.calculatingLimits())
     # print(mrt_lim)
@@ -73,22 +74,36 @@ def main():
 
     history_3lv_unc, sae_3lv_unc, hr_3lv_unc = sae_obj.sup_3lv_ae_2hiddenpre(train_datafile)
     
-    sae_obj.parameters['learning_rate'] = 0.0075
+    sae_obj.parameters['learning_rate'] = 0.005
 
     history_3lv_sae, sae_3lv, hr_3lv = sae_obj.sup_3lv_ae_2hiddenpre_physicsConstrained(train_datafile)
+
+    history_3lv_mrt2, sae_3lv_mrt2, hr_3lv_mrt2 = sae_obj.sup_3lv_ae_physicsConstrained_mrt2(train_datafile)
     
     plt_obj.history_plotter(history_3lv_unc,'loss','val_loss',sae1_name)
-
     plt_obj.history_plotter(history_3lv_sae,'loss','val_loss',sae2_pc_name)
+    plt_obj.history_plotter(history_3lv_mrt2,'loss','val_loss',sae3_pcmrt2_name)
 
-    test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, \
-        mms_geo_test, mms_mat_test, mms_all_test, mrt_lim, torque_lim, d50_lim \
-             = sae_obj.dataPreprocessing_3lv(test_datafile)
+
+    mrt_lim_flag = 2
+    if(mrt_lim_flag==1):
+        test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, \
+            mms_geo_test, mms_mat_test, mms_all_test, mrt_lim, torque_lim, d50_lim \
+                = sae_obj.dataPreprocessing_3lv(test_datafile,mrt_lim_flag)
+    elif(mrt_lim_flag==2):
+        test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, \
+            mms_geo_test, mms_mat_test, mms_all_test, mrt_lim, mrt_lim_high, torque_lim, d50_lim \
+                = sae_obj.dataPreprocessing_3lv(test_datafile,mrt_lim_flag)
+    else:
+        print("MRT lim flag wrong in run file")
 
     # getting prediction for reconstruction and prediction
     predictions_y_unc = sae_3lv_unc.predict([test_pp,test_mat,test_geo])
 
     predictions_y_AE = sae_3lv.predict([test_pp,test_mat,test_geo,mrt_lim, torque_lim, d50_lim])
+
+    predictions_y_mrt2 = sae_3lv_mrt2.predict([test_pp,test_mat,test_geo,mrt_lim,mrt_lim_high, torque_lim, d50_lim])
+
 
     pred_con_y_unc = np.reshape(np.ravel(np.array(predictions_y_unc[1])),(len(test_datafile),3))
     pred_con_recons_unc = np.reshape(np.ravel(np.array(predictions_y_unc[0])),(len(test_datafile),16))
@@ -96,6 +111,9 @@ def main():
     pred_con_y = np.reshape(np.ravel(np.array(predictions_y_AE[1])),(len(test_datafile),3))
     pred_con_recons = np.reshape(np.ravel(np.array(predictions_y_AE[0])),(len(test_datafile),16))
     
+    pred_con_y_mrt2 = np.reshape(np.ravel(np.array(predictions_y_AE[1])),(len(test_datafile),3))
+    pred_con_recons_mrt2 = np.reshape(np.ravel(np.array(predictions_y_AE[0])),(len(test_datafile),16))
+
     # parity plots for prediction
 
     plt.figure()
@@ -109,19 +127,29 @@ def main():
     plt.figure()
     parityPlot(np.ravel(predictions_y_AE[0]),test_all,'PCSAE reconstruction')
 
+    plt.figure()
+    parityPlot(np.ravel(predictions_y_mrt2[1]),test_labels.values,'PCSAE prediction with 2 limits on mrt')
+    plt.figure()
+    parityPlot(np.ravel(predictions_y_mrt2[0]),test_all,'PCSAE reconstruction with 2 limits on mrt')
+
     r2_ypre_unc = sae_obj.calculateR2(np.ravel(predictions_y_unc[1]),test_labels.values,labels)
     r2_recons_unc = sae_obj.calculateR2(np.ravel(predictions_y_unc[0]),test_all,x_headers)
 
     r2_ypre = sae_obj.calculateR2(np.ravel(predictions_y_AE[1]),test_labels.values,labels)
     r2_recons = sae_obj.calculateR2(np.ravel(predictions_y_AE[0]),test_all,x_headers)
 
+    r2_ypre_mrt2 = sae_obj.calculateR2(np.ravel(predictions_y_mrt2[1]),test_labels.values,labels)
+    r2_recons_mrt2 = sae_obj.calculateR2(np.ravel(predictions_y_mrt2[0]),test_all,x_headers)
+
     hrall_mat, hrall_pp, hrall_geo, hrall_all, hrall_labels, mms_pp_hrall, \
-        mms_geo_hrall, mms_mat_hrall, mms_all_hrall, mrt_lim_all, torque_lim_all, d50_lim_all \
-             = sae_obj.dataPreprocessing_3lv(dataFile_original)
+        mms_geo_hrall, mms_mat_hrall, mms_all_hrall, mrt_lim_all, mrt_lim_all_high, torque_lim_all, d50_lim_all \
+             = sae_obj.dataPreprocessing_3lv(dataFile_original,2)
 
     latent_rep = np.reshape(np.array(hr_3lv.predict([hrall_pp,hrall_mat,hrall_geo,mrt_lim_all, torque_lim_all, d50_lim_all])).T,(len(dataFile_original),3))
 
     latent_rep_unc = np.reshape(np.array(hr_3lv_unc.predict([hrall_pp,hrall_mat,hrall_geo])).T,(len(dataFile_original),3))
+
+    latent_rep_mrt2 = np.reshape(np.array(hr_3lv_mrt2.predict([hrall_pp,hrall_mat,hrall_geo,mrt_lim_all, mrt_lim_all_high, torque_lim_all, d50_lim_all])).T,(len(dataFile_original),3))
 
     extent = np.divide(dataFile_original['final d50'],dataFile_original['Initial d50'])
     dataFile_original['Extent of Granulation'] = extent
@@ -135,25 +163,32 @@ def main():
     label_mat = 'Mat'
     label_geo = 'Geo'
     
-    svm_planes_3d(dataFile_original,latent_rep,'PCSAE','linear')
-    plt.show()
+    
     # sae_3lv_unc.save('./SAEmodel')
-    # sae_3lv.save('./PCSAEmodel')
-'''
-    plot_all = sae_obj.plot_all3_range1_un2(latent_rep,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
-        ranges,titles,label_pp,label_mat,i_pp,i_mat)
-    plot_all = sae_obj.plot_all3_range1_un2(latent_rep,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
-        ranges,titles,label_geo,label_mat,i_geo,i_mat)
-    plot_all = sae_obj.plot_all3_range1_un2(latent_rep,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
-        ranges,titles,label_pp,label_geo,i_pp,i_geo)
+    sae_3lv.save('./PCSAEmodel.h5')
+
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_pp,label_mat,i_pp,i_mat)
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_geo,label_mat,i_geo,i_mat)
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_pp,label_geo,i_pp,i_geo)
 
 
-    plot_all = sae_obj.plot_all3_range1_un2(latent_rep_unc,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
-        ranges,titles,label_pp,label_mat,i_pp,i_mat)
-    plot_all = sae_obj.plot_all3_range1_un2(latent_rep_unc,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
-        ranges,titles,label_geo,label_mat,i_geo,i_mat)
-    plot_all = sae_obj.plot_all3_range1_un2(latent_rep_unc,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
-        ranges,titles,label_pp,label_geo,i_pp,i_geo)
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep_unc,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_pp,label_mat,i_pp,i_mat)
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep_unc,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_geo,label_mat,i_geo,i_mat)
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep_unc,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_pp,label_geo,i_pp,i_geo)
+
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep_mrt2,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_pp,label_mat,i_pp,i_mat)
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep_mrt2,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_geo,label_mat,i_geo,i_mat)
+    # plot_all = sae_obj.plot_all3_range1_un2(latent_rep_mrt2,dataFile_original,dataFile_original['Experiments'],dataFile_original['Regime'],dataFile_original['Extent of Granulation'],\
+    #     ranges,titles,label_pp,label_geo,i_pp,i_geo)
+
     
     print("\n--------- Performance--------\n")
     print("R^2 for ",sae1_name ," prediction     = ",r2_ypre_unc)
@@ -162,29 +197,34 @@ def main():
     print("R^2 for ",sae2_pc_name ," prediction     = ",r2_ypre)
     print("R^2 for ",sae2_pc_name ," reconstruction = ",r2_recons)
 
+    print("R^2 for ",sae3_pcmrt2_name ," prediction     = ",r2_ypre_mrt2)
+    print("R^2 for ",sae3_pcmrt2_name ," reconstruction = ",r2_recons_mrt2)
 
 
-    fig = plt.figure(figsize=(8,8))
-    ax = plt.axes(projection='3d')
-    # print(latent_rep.shape)
-    regs = dataFile_original['Regime']
-    # print(len_TrainData)
-    for g in np.unique(regs):
-        i = np.where(regs==g)
-        ax.scatter3D(latent_rep[i,0],latent_rep[i,1],latent_rep[i,2],label=g)
-    ax.set_xlabel('PP')
-    ax.set_ylabel('Mat.')
-    ax.set_zlabel('Geo')
-    ax.set_title('According to Regime')
-    ax.legend(bbox_to_anchor=(0., -0.5, 1., .102), loc='lower left',
-            ncol=2, mode="expand", borderaxespad=0.)
-    ax.view_init(-45, 30)
+
+    # fig = plt.figure(figsize=(8,8))
+    # ax = plt.axes(projection='3d')
+    # # print(latent_rep.shape)
+    # regs = dataFile_original['Regime']
+    # # print(len_TrainData)
+    # for g in np.unique(regs):
+    #     i = np.where(regs==g)
+    #     ax.scatter3D(latent_rep[i,0],latent_rep[i,1],latent_rep[i,2],label=g)
+    # ax.set_xlabel('PP')
+    # ax.set_ylabel('Mat.')
+    # ax.set_zlabel('Geo')
+    # ax.set_title('According to Regime')
+    # ax.legend(bbox_to_anchor=(0., -0.5, 1., .102), loc='lower left',
+    #         ncol=2, mode="expand", borderaxespad=0.)
+    # ax.view_init(-45, 30)
+     # cluster_kmeans_3d(dataFile_original,latent_rep,'Physics constrained model')
+
     headers_pp  = ['RPM','L/S Ratio','FlowRate', 'Temperature']
     headers_mat = ['Initial d50','Binder Viscosity','Flowability','Bulk Density']
     headers_geo = ['nCE','G. diameter','L/D Ratio','SA of KE','nKE','Liq add','nKZ','dKZ']
     
-    cluster_kmeans_3d(dataFile_original,latent_rep,'Physics constrained model')
-    
+   
+  
     samplesize_pp = {
     'num_vars': 4,
     'names': headers_pp,
@@ -218,10 +258,15 @@ def main():
     
     input_parameter_sensitivity_lv(hr_3lv_unc,[samplesize_pp,samplesize_mat,samplesize_geo],[headers_pp,headers_mat,headers_geo],False)
 
-    input_parameter_sensitivity_lv_phycon(hr_3lv,[samplesize_pp,samplesize_mat,samplesize_geo],[headers_pp,headers_mat,headers_geo], mrt_lim_all, torque_lim_all, d50_lim_all,False)
+    input_parameter_sensitivity_lv_phycon(hr_3lv,[samplesize_pp,samplesize_mat,samplesize_geo],[headers_pp,headers_mat,headers_geo], mrt_lim_all, mrt_lim_all_high, torque_lim_all, d50_lim_all,False,1)
+    
+    input_parameter_sensitivity_lv_phycon(hr_3lv_mrt2,[samplesize_pp,samplesize_mat,samplesize_geo],[headers_pp,headers_mat,headers_geo], mrt_lim_all, mrt_lim_all_high, torque_lim_all, d50_lim_all,False,2)
+    
+    svm_planes_3d(dataFile_original,latent_rep,'PCSAE','linear')
+    svm_planes_3d(dataFile_original,latent_rep_mrt2 ,'PCSAE with 2 limits','linear')
     
     plt.show()
-    '''
+    
     
 
 
@@ -264,7 +309,7 @@ def svm_planes_3d(datafile,latent_vars,title,kernel_type):
     tmp2 = np.linspace(min(latent_vars[:,1]),max(latent_vars[:,1]),50)
     # tmp = np.linspace(-1,1,50)
     x,y = np.meshgrid(tmp1,tmp2)
-    print(clf.predict_log_proba(latent_vars))
+    # print(clf.predict_log_proba(latent_vars))
 
     fig = plt.figure()
     ax  = fig.add_subplot(111, projection='3d')
@@ -358,7 +403,7 @@ def input_parameter_sensitivity_lv(model,samplesize,dictName,dispflag):
     plot_obj.sensPlot_2(S_mat,samplesize[1]['names'],'Material Properties Latent Space')
     plot_obj.sensPlot_2(S_geo,samplesize[2]['names'],'Geometry Latent Space')
 
-def input_parameter_sensitivity_lv_phycon(model,samplesize,dictName,mrt_lim_all, torque_lim_all, d50_lim_all,dispflag):
+def input_parameter_sensitivity_lv_phycon(model,samplesize,dictName,mrt_lim_all, mrt_lim_all_high,torque_lim_all, d50_lim_all,dispflag=False,limflag=1):
     # value of N was decided due the output of the sample method, return N*(2D+2) array
     parameter_vals_pp = saltelli.sample(samplesize[0], 1800)
     parameter_vals_mat = saltelli.sample(samplesize[1], 1800)
@@ -372,7 +417,8 @@ def input_parameter_sensitivity_lv_phycon(model,samplesize,dictName,mrt_lim_all,
     norm_paramVals_pp = np.zeros(parameter_vals_pp.shape)
     norm_paramVals_mat = np.zeros(parameter_vals_mat.shape)
     norm_paramVals_geo = np.zeros(parameter_vals_geo.shape)
-    mrt_lim_all = np.zeros(parameter_vals_pp.shape[0])    
+    mrt_lim_all = np.zeros(parameter_vals_pp.shape[0])
+    mrt_lim_all_high = np.zeros(parameter_vals_pp.shape[0])    
     torque_lim_all = np.zeros(parameter_vals_pp.shape[0])
     d50_lim_all = np.zeros(parameter_vals_pp.shape[0])
 
@@ -390,7 +436,10 @@ def input_parameter_sensitivity_lv_phycon(model,samplesize,dictName,mrt_lim_all,
         for n in range(len(parameter_vals_geo)):
             norm_paramVals_geo[n,i] = (parameter_vals_geo[n,i] - samplesize[2]['bounds'][i][0]) /(samplesize[2]['bounds'][i][1] - samplesize[2]['bounds'][i][0])
 
-    prediction_model = model.predict([norm_paramVals_pp,norm_paramVals_mat,norm_paramVals_geo,mrt_lim_all, torque_lim_all, d50_lim_all])
+    if(limflag==1):
+        prediction_model = model.predict([norm_paramVals_pp,norm_paramVals_mat,norm_paramVals_geo,mrt_lim_all, torque_lim_all, d50_lim_all])
+    if(limflag==2):
+        prediction_model = model.predict([norm_paramVals_pp,norm_paramVals_mat,norm_paramVals_geo,mrt_lim_all, mrt_lim_all_high, torque_lim_all, d50_lim_all])
 
     # if (index==0):
     #     prediction_model = model.predict([norm_paramVals,samplesize[1],samplesize[2]])
@@ -422,9 +471,15 @@ def input_parameter_sensitivity_lv_phycon(model,samplesize,dictName,mrt_lim_all,
 
     plot_obj = PlotterClass()
     # Read on sobol indices here : https://uncertainpy.readthedocs.io/en/latest/theory/sa.html
-    plot_obj.sensPlot_2(S_pp,samplesize[0]['names'],'Process Parameters Latent Space for PCSAE')
-    plot_obj.sensPlot_2(S_mat,samplesize[1]['names'],'Material Properties Latent Space for PCSAE')
-    plot_obj.sensPlot_2(S_geo,samplesize[2]['names'],'Geometry Latent Space for PCSAE')
+    if(limflag==1):
+        plot_obj.sensPlot_2(S_pp,samplesize[0]['names'],'Process Parameters Latent Space for PCSAE')
+        plot_obj.sensPlot_2(S_mat,samplesize[1]['names'],'Material Properties Latent Space for PCSAE')
+        plot_obj.sensPlot_2(S_geo,samplesize[2]['names'],'Geometry Latent Space for PCSAE')
+    
+    elif(limflag==2):
+        plot_obj.sensPlot_2(S_pp,samplesize[0]['names'],'Process Parameters Latent Space for PCSAE with 2 MRT limits')
+        plot_obj.sensPlot_2(S_mat,samplesize[1]['names'],'Material Properties Latent Space for PCSAE with 2 MRT limits')
+        plot_obj.sensPlot_2(S_geo,samplesize[2]['names'],'Geometry Latent Space for PCSAE with 2 MRT limits')
 
 
 def parityPlot(test_data,test_predictions,title):

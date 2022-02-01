@@ -216,9 +216,9 @@ class PlotterClass:
         # ax.bar(names,sobolDict['S2'],yerr=sobolDict['S2_conf'])
         ax.set_ylabel('Sensitivity ')
         ax.set_xticks(x_pos)
-        ax.set_xticklabels(names)
+        ax.set_xticklabels(names, rotation = 45)
         ax.yaxis.grid(True)
-        ax.set_title(dictName)
+        ax.set_title(dictName,fontsize=30)
         fig.set_size_inches(9, 9)
 
         # plt.savefig(dictName+'.png')

@@ -213,7 +213,7 @@ class SupervisedAutoencoder:
 
     def sup_3lv_ae(self,train_datafile):
         # collect preprocessed data
-        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all = self.dataPreprocessing_3lv(train_datafile)
+        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all = self.dataPreprocessing_3lv(train_datafile,1)
         # test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, mms_geo_test, mms_mat_test, mms_all_test = self.dataPreprocessing_3lv(test_datafile)
         
         params = self.parameters
@@ -275,7 +275,7 @@ class SupervisedAutoencoder:
 
     def sup_3lv_ae_2hiddenpre(self,train_datafile):
         # collect preprocessed data
-        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all,  mrt_lim, torque_lim, d50_lim = self.dataPreprocessing_3lv(train_datafile)
+        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all,  mrt_lim, torque_lim, d50_lim = self.dataPreprocessing_3lv(train_datafile,1)
         # test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, mms_geo_test, mms_mat_test, mms_all_test = self.dataPreprocessing_3lv(test_datafile)
         
         params = self.parameters
@@ -343,7 +343,7 @@ class SupervisedAutoencoder:
 
     def sup_3lv_ae_2hiddenpre_physicsConstrained(self,train_datafile):
         # collect preprocessed data
-        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all,  mrt_lim, torque_lim, d50_lim = self.dataPreprocessing_3lv(train_datafile)
+        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all,  mrt_lim, torque_lim, d50_lim = self.dataPreprocessing_3lv(train_datafile,1)
         # test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, mms_geo_test, mms_mat_test, mms_all_test = self.dataPreprocessing_3lv(test_datafile)
         
         params = self.parameters
@@ -418,10 +418,89 @@ class SupervisedAutoencoder:
 
         return history, autoencoder, hidden_representation
 
+    def sup_3lv_ae_physicsConstrained_mrt2(self,train_datafile):
+        # collect preprocessed data
+        train_mat, train_pp, train_geo, train_all, train_labels, mms_pp, mms_geo, mms_mat, mms_all,  mrt_lim_low,  mrt_lim_high, torque_lim, d50_lim = self.dataPreprocessing_3lv(train_datafile,2)
+        # test_mat, test_pp, test_geo, test_all, test_labels, mms_pp_test, mms_geo_test, mms_mat_test, mms_all_test = self.dataPreprocessing_3lv(test_datafile)
+        
+        params = self.parameters
+        
+        # start the autoencoder 
+        ##LV for Process Parameters
+        
+        input_pp = Input(shape=(train_pp.shape[1],))
+        #hidden layer
+        hidden_pp1 = Dense(params["nodes_pp_enc_layer"],activation=params["inner_layer_actFcn"],name='hid_layer_pp1')(input_pp)
+        # bottleneck layer
+        encoder_pp = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_pp')(hidden_pp1)
+
+
+        ##LV for Material Properties
+        input_mat = Input(shape=(train_mat.shape[1],))
+        #hidden layer
+        hidden_mat = Dense(params["nodes_mat_enc_layer"],activation=params["inner_layer_actFcn"],name='hid_layer_mat')(input_mat)
+        # bottleneck layer
+        encoder_mat = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_mat')(hidden_mat)
+
+        ##LV for Geometry
+        input_geo = Input(shape=(train_geo.shape[1],))
+        #hidden layer
+        hidden_geo = Dense(params["nodes_geo_enc_layer"],activation=params["decod_layer_actFcn"],name='hid_layer_geo')(input_geo)
+        # bottleneck layer
+        encoder_geo = Dense(params["nodes_lv_layer"],activation=params["encod_layer_actFcn"],name='lv_layer_geo')(hidden_geo)
+
+        # Creating input layer to pass limits to the custom loss function
+        input_mrt_lim = Input(shape=1)#(mrt_lim.shape[1],))
+        input_mrt_lim_high = Input(shape=1)#(mrt_lim.shape[1],))
+        input_tor_lim = Input(shape=1)#(torque_lim.shape[1],))
+        input_d50_lim = Input(shape=1)#(d50_lim.shape[1],))
+
+        concat_bottleneck = Concatenate()([encoder_pp,encoder_mat,encoder_geo])
+        
+        # recons decoder layer 1
+        decoder_recons_1 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons1')(concat_bottleneck)
+        decoder_recons_2 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons2')(decoder_recons_1)
+        # decoder_recons_3 = Dense(params["nodes_dec_layers"],activation=params["decod_layer_actFcn"],name='decoder_layer_recons3')(decoder_recons_2)
+
+        # output prediction decoder layer 1 
+        decoder_pred_1 = Dense(params["nodes_predec_layer_1"],activation=params["decod_layer_actFcn_pre"],name='decoder_layer_pred1')(concat_bottleneck)
+        # output prediction decoder layer 2
+        decoder_pred_2 = Dense(params["nodes_predec_layer_2"],activation=params["decod_layer_actFcn_pre"],name='decoder_layer_pred2')(decoder_pred_1)
+        # output prediction decoder layer 3
+        # decoder_pred_3 = Dense(params["nodes_predec_layer_3"],activation=params["decod_layer_actFcn_pre"],name='decoder_layer_pred3')(decoder_pred_2)
+        # # # # output prediction decoder layer 4
+        # decoder_pred_4 = Dense(params["nodes_predec_layer_4"],activation=params["decod_layer_actFcn"],name='decoder_layer_pred4')(decoder_pred_3)
+
+        # output layer reconstruction
+        output_recons = Dense(train_all.shape[1],activation=params["output_layer_actFcn"],name='recon_out')(decoder_recons_2)
+        output_pred = Dense(train_labels.shape[1],activation=params["sup_layer_actFcn"],name='pred_out')(decoder_pred_2)
+
+        autoencoder = Model([input_pp,input_mat,input_geo,input_mrt_lim,input_mrt_lim_high,input_tor_lim,input_d50_lim],[output_recons,output_pred])
+
+        autoencoder.summary()
+        losses = {'recon_out': 'mse', 'pred_out':self.lossFunc_mrt2Lims(output_pred[:,1],output_pred[:,0],output_pred[:,2],input_mrt_lim,input_mrt_lim_high,input_tor_lim,input_d50_lim)}
+        
+        autoencoder.compile(optimizer=params['optimizer_sup'](learning_rate=params['learning_rate']),loss=losses,loss_weights=[1,2],metrics=['mse','mae'],experimental_run_tf_function=False)
+        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=1000)
+
+        history = autoencoder.fit([train_pp,train_mat,train_geo,mrt_lim_low,mrt_lim_high, torque_lim, d50_lim],[train_all,train_labels],epochs=params['n_epochs'], shuffle=False,validation_split=params['val_split'],verbose=params['verbose'],use_multiprocessing=True,callbacks=[callback])
+
+        
+
+        # predictions_y_AE = autoencoder.predict([test_pp,test_mat,test_geo])
+
+        # Getting the hidden representation of the 
+        hidden_representation = Model([input_pp,input_mat,input_geo,input_mrt_lim,input_tor_lim,input_d50_lim],[encoder_pp,encoder_mat,encoder_geo])
+
+        # hidden_representation_3.summary()
+        # latent_rep = np.array(hidden_representation.predict([datafile_processparam,datafile_material,datafile_geometry]))
+        # hidden_representation_3.summary()
+
+        return history, autoencoder, hidden_representation
 
 ############# PHYSICS CALCULATIONS ##################
 
-    def calculatinglimits_mrt(self,datafile):
+    def calculatinglimits_mrt(self,datafile,limflag):
        
         datafile_all = datafile
         dcm_obj = DataCompletionMethods(self.incomplete_datafile)
@@ -435,13 +514,26 @@ class SupervisedAutoencoder:
         datafile_all['MRT_imp'] = pred_data['Ran_MRT']
         # datafile_all = self.random_imputation(datafile_all,["Torque"])
         # datafile_all = self.random_imputation(datafile_all,["MRT"])
-
+        screwConfig = datafile_all[["Granulator diameter (mm)","L/D Ratio","nKE","nCE"]]
         parameters = list(set(datafile_all.columns) - set(['Torque','MRT','Liq add Position']))
         # parameters = list(set(datafile_all.columns) - set(['Liq add Position']))
         # parameters.remove('Torque_imp')
-        mrt_lim = model_ran.predict(MinMaxScaler().fit_transform(datafile_all[parameters])) / 100
+        mrt_lim_low = model_ran.predict(MinMaxScaler().fit_transform(datafile_all[parameters])) / 100
+        if(limflag==1):
+            return mrt_lim_low
 
-        return mrt_lim
+        elif(limflag==2):
+            dGran = np.array(screwConfig["Granulator diameter (mm)"])
+            v_free, v_max = dcm_obj.vFreeCalculation(dGran,screwConfig)
+            rho_b = datafile_all["Bulk Density"]
+            fr_pow = datafile_all["FlowRate (kg/hr)"]
+
+            mrt_lim_high = np.divide(np.multiply(np.power(v_max,2),rho_b),np.multiply(fr_pow,v_free)
+            ) / 100
+
+            return mrt_lim_low, mrt_lim_high
+        else:
+            print("Wrong flag value for mrt lim flag passed in calculation")
 
 
     def calculatinglimits_torqueandd50(self,train_pp,train_mat,train_geo):
@@ -451,7 +543,7 @@ class SupervisedAutoencoder:
         # 10 added to scale according to the scaling of labels
         peak_shear_rate = ((np.pi*1.3) / (60.0 * 10.0)) * np.divide(np.multiply(train_geo["Granulator diameter (mm)"],train_pp['RPM']),scaled_h)
 
-        d50_max = np.array(train_mat['Initial d50']  * 60) / 1e6
+        d50_max = np.array(train_mat['Initial d50']  * 60) *2 / 1e6
 
         # lim_torque_d50 = np.concatenate([peak_shear_rate,d50_max],axis=0)
         return peak_shear_rate, d50_max
@@ -503,9 +595,62 @@ class SupervisedAutoencoder:
                     
             return K.mean(K.square(yTrue - yPred)) + addError_mrt + addError_tor + addError_d50
         return loss    
+    
+
+    def lossFunc_mrt2Lims(self,output_mrt,output_torque,output_d50,input_mrt_lim,input_mrt_lim_high,input_tor_lim,input_d50_lim):
+        def loss(yTrue,yPred):
+                        
+                        # c = K.cast_to_floatx(np.multiply(Ys,b))
+            # d = K.cast_to_floatx(np.full(len(Uc),(0.1)))
+            # rho_comp = K.cast_to_floatx(np.divide(np.divide(d,c),1e3))
+            
+            # rho_l = rho_comp - output_1
+            # rho_l = rho_l[rho_l < 0]
+            # length = K.shape(rho_l)[0]
+
+            mrt_com = output_mrt - input_mrt_lim
+            # mrt_com = output_mrt - 0.3
+            mrt_high = input_mrt_lim_high - output_mrt
+            mrt_com = mrt_com[mrt_com < 0]
+            mrt_high = mrt_high[mrt_high<0]
+
+            
+            tor_com = input_tor_lim - output_torque
+            # tor_com = 0.5 - output_torque
+            tor_com = tor_com[tor_com < 0]
+            
+            d50_com = input_d50_lim - output_d50
+            # d50_com = 1 - output_d50
+            d50_com = d50_com[d50_com < 0]
+            
+            # length = K.cast(length,K.floatx())
+            # length = K.reshape(length,(1,1))
+            # length = K.shape(yTrue)[0]
+            # length = K.cast(length,K.floatx())
+            # mrt_com = K.reshape(mrt_com,(length,1))
+
+            addError_mrt = K.sum(K.square(mrt_com))
+            addError_mrt2 = K.sum(K.square(mrt_high))
+            addError_tor = K.sum(K.square(tor_com))
+            addError_d50 = K.sum(K.square(d50_com))
+
+            # print(K.shape(yTrue)[1])
+            # print(K.shape(yPred)[1])
+            # print(K.shape(addError_mrt))
+            # print(K.shape(addError_tor))
+            # print(K.shape(addError_d50))
+
+            # stde_output = K.dot(output_1,K.transpose(c))
+            # stde_comp = stde_output - d
+            # stde_v = stde_comp[stde_comp > 0]
+
+            # addError = k.mean(stde_v)
+                    
+            return K.mean(K.square(yTrue - yPred)) + addError_mrt + addError_tor + addError_d50 + addError_mrt2
+        return loss
 
 ############### Data PREPROCESSING #################
-    def dataPreprocessing_3lv(self,train_datafile):
+    def dataPreprocessing_3lv(self,train_datafile,limflag):
         #data preprocessing for training data
         datafile_processparam = train_datafile[['RPM','L/S Ratio','FlowRate (kg/hr)', 'Temperature']]
         datafile_material     = train_datafile[['Initial d50','Binder Viscosity (mPa.s)','Flowability (HR)','Bulk Density']]
@@ -536,11 +681,21 @@ class SupervisedAutoencoder:
 
         # calling the limit functions here since cannot be computed in custom loss
         # can be passed as a separate input layer in keras
-        mrt_lim = self.calculatinglimits_mrt(datafile_allinputs)
-            
+          
         torque_lim , d50_lim = self.calculatinglimits_torqueandd50(datafile_processparam,datafile_material,datafile_geometry)
 
-        return scaled_datafile_material, scaled_datafile_processparam, scaled_datafile_geometry, scaled_datafile_allinputs, train_labels, mms_pp, mms_geo, mms_mat, mms_all, mrt_lim, torque_lim, d50_lim
+        if(limflag==1):
+            mrt_lim = self.calculatinglimits_mrt(datafile_allinputs,limflag)
+
+            return scaled_datafile_material, scaled_datafile_processparam, scaled_datafile_geometry, scaled_datafile_allinputs, train_labels, mms_pp, mms_geo, mms_mat, mms_all, mrt_lim, torque_lim, d50_lim
+
+        elif(limflag==2):
+            mrt_lim_low, mrt_lim_high = self.calculatinglimits_mrt(datafile_allinputs,limflag)
+
+            return scaled_datafile_material, scaled_datafile_processparam, scaled_datafile_geometry, scaled_datafile_allinputs, train_labels, mms_pp, mms_geo, mms_mat, mms_all, mrt_lim_low, mrt_lim_high, torque_lim, d50_lim
+
+        else:
+            print("Wrong flag value for mrt lim flag passed in data preprocessing")
 
     def random_imputation(self,df, feature):
         number_missing = df[feature].isnull().sum()

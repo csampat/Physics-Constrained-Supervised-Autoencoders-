@@ -35,7 +35,7 @@ class DataCompletionMethods:
 
     def pfnCalc(self):
         dataFile = self.ucDatafile
-        denom = np.multiply(dataFile['Bulk Density'],np.multiply(dataFile['RPM']*np.pi/30,np.power(dataFile["Granulator diameter (mm)"]/1000,3)))
+        denom = np.multiply(dataFile['Bulk Density'],np.multiply(dataFile["RPM"]*np.pi/30,np.power(dataFile["Granulator diameter (mm)"]/1000,3)))
         # pfn = np.divide((dataFile["FlowRate (kg/hr)"]*(1+dataFile["L/S Ratio"]))/3600,denom) 
         pfn = np.divide(dataFile["FlowRate (kg/hr)"]/3600,denom) 
         return pfn

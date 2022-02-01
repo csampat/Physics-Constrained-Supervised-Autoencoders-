@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 def main():
     cwd = os.getcwd()
     files = 'dataFiles/test_data1_WithOutputs_withCalculatedValues.csv'
+    # files = 'dataFiles/pls_250points_torqueMRT_added.csv'
     dataFile = pd.read_csv(os.path.join(cwd,files))
     # dataFile = pd.read_csv('dataFiles/test_data1_WithOutputs.csv')
     dataFile_edit = dataFile.drop(['Sr No','Screw Configuration','Experiments','Liq add position'],axis=1)
@@ -48,7 +49,7 @@ def main():
     lsvis = np.multiply(dataFile_edit["Binder Viscosity (mPa.s)"],dataFile_edit["L/S Ratio"])
     dataFile_edit["Calc Beta"] = beta
     print(dataFile_edit.describe().T)
-    dataFile_edit.to_csv('calc_fill.csv')
+    dataFile_edit.to_csv('calc_fill_257.csv')
 
 def vFreeCalculation(dGran,screwConfig):
     l_total = np.multiply(screwConfig["Granulator diameter (mm)"],screwConfig["L/D Ratio"]) 
