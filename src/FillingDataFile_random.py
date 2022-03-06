@@ -6,22 +6,25 @@ from sklearn import linear_model
 import missingno as mno
 
 def main():
-    dataFile_emptyOutputs = pd.read_csv('test_data1_WithOutputs.csv')
+    dataFile_emptyOutputs = pd.read_csv('dataFiles/test_data1_WithOutputs.csv')
+    # dataFile_emptyOutputs = pd.read_csv('dataFiles/pls_250points_torqueMRT_added.csv')
     # print(dataFile_emptyOutputs.describe())
     missing_columns = ['Torque','MRT']
+    
+
     for feature in missing_columns:
         dataFile_emptyOutputs[feature+'_imp'] = dataFile_emptyOutputs[feature]
         dataFile_emptyOutputs = random_imputation(dataFile_emptyOutputs,feature)
     # mno.matrix(dataFile_emptyOutputs)
     # print(dataFile_emptyOutputs)
     deter_data = pd.DataFrame(columns = ["Det" + name for name in missing_columns])
-    dataFile_emptyOutputs = dataFile_emptyOutputs.drop(['Sr No','Screw Configuration','Experiments','Liq add position','Regime','Beta','d50','Exp Fill level'],axis=1)
-
+    dataFile_emptyOutputs = dataFile_emptyOutputs.drop(['Sr No','Screw Configuration','Experiments','Liq add position','final d50','Regime', 'Exp Fill level','Beta'],axis=1)
+    # dataFile_emptyOutputs = dataFile_emptyOutputs.drop(['Sr No','Screw Configuration','Experiments','Liq add position','Year','final d50'],axis=1)
     # for feature in missing_columns:
             
     #     deter_data["Det" + feature] = dataFile_emptyOutputs[feature + "_imp"]
     #     parameters = list(set(dataFile_emptyOutputs.columns) - set(missing_columns) - {feature + '_imp'})
-    #     # print(parameters)
+    #     print(parameters)
     #     #Create a Linear Regression model to estimate the missing data
     #     model = linear_model.LinearRegression()
     #     model.fit(X = dataFile_emptyOutputs[parameters], y = dataFile_emptyOutputs[feature + '_imp'])
@@ -53,8 +56,10 @@ def main():
         random_data["Ran" + feature] = dataFile_emptyOutputs[feature + '_imp']
         parameters = list(set(dataFile_emptyOutputs.columns) - set(missing_columns) - {feature + '_imp'})
         
-        model1 = linear_model.LinearRegression()
+        model1 = linear_model.LinearRegression(fit_intercept=True,normalize=True)
         model1.fit(X = dataFile_emptyOutputs[parameters], y = dataFile_emptyOutputs[feature + '_imp'])
+
+        print(model1.score(X = dataFile_emptyOutputs[parameters], y = dataFile_emptyOutputs[feature + '_imp']))
         
         #Standard Error of the regression estimates is equal to std() of the errors of each estimates
         predict = model1.predict(dataFile_emptyOutputs[parameters])
@@ -82,7 +87,7 @@ def main():
     dataFile_completedTorque = pd.concat([dataFile_emptyOutputs,results2])
     print(dataFile_completedTorque[["Torque","Torque_imp","RanTorque",\
         "MRT","MRT_imp","RanMRT"]].describe().T)
-    dataFile_completedTorque.to_csv('completed_random.csv')
+    dataFile_completedTorque.to_csv('completed_random_263.csv')
     plt.show()
 
 

@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 def main():
     cwd = os.getcwd()
     files = 'dataFiles/test_data1_WithOutputs_withCalculatedValues.csv'
+    # files = 'dataFiles/pls_250points_torqueMRT_added.csv'
     dataFile = pd.read_csv(os.path.join(cwd,files))
     # dataFile = pd.read_csv('dataFiles/test_data1_WithOutputs.csv')
     dataFile_edit = dataFile.drop(['Sr No','Screw Configuration','Experiments','Liq add position'],axis=1)
-    screwConfig = dataFile_edit[["Granulator diameter (mm)","L/D Ratio","n KE","nCE"]]
+    screwConfig = dataFile_edit[["Granulator diameter (mm)","L/D Ratio","nKE","nCE"]]
     dGran = screwConfig["Granulator diameter (mm)"]
     vFree_all,v_max_all = vFreeCalculation(dGran,screwConfig)
     pfnVals = pfnCalc(dataFile_edit)
@@ -48,7 +49,7 @@ def main():
     lsvis = np.multiply(dataFile_edit["Binder Viscosity (mPa.s)"],dataFile_edit["L/S Ratio"])
     dataFile_edit["Calc Beta"] = beta
     print(dataFile_edit.describe().T)
-    dataFile_edit.to_csv('calc_fill.csv')
+    dataFile_edit.to_csv('calc_fill_257.csv')
 
 def vFreeCalculation(dGran,screwConfig):
     l_total = np.multiply(screwConfig["Granulator diameter (mm)"],screwConfig["L/D Ratio"]) 
@@ -60,13 +61,13 @@ def vFreeCalculation(dGran,screwConfig):
     v_shaft = np.multiply(l_eff,scalingwithMun(dGran,"As",2))
     # v_shaft = np.zeros((len(screwConfig["n KE"])))
     # v_shaft.fill(v_shaft_sinVal[0])
-    v_elem = screwConfig["n KE"] * scalingwithMun(dGran,"Vke",3) + screwConfig["nCE"] * scalingwithMun(dGran,"Vspce",3)
+    v_elem = screwConfig["nKE"] * scalingwithMun(dGran,"Vke",3) + screwConfig["nCE"] * scalingwithMun(dGran,"Vspce",3)
     v_free = v_max - v_shaft - v_elem
 
     return v_free, v_max
 
 def pfnCalc(dataFile):
-    denom = np.multiply(dataFile['Bulk Density'],np.multiply(dataFile['RPM (1/s)']*np.pi/30,np.power(dataFile["Granulator diameter (mm)"]/1000,3)))
+    denom = np.multiply(dataFile['Bulk Density'],np.multiply(dataFile['RPM']*np.pi/30,np.power(dataFile["Granulator diameter (mm)"]/1000,3)))
     # pfn = np.divide((dataFile["FlowRate (kg/hr)"]*(1+dataFile["L/S Ratio"]))/3600,denom) 
     pfn = np.divide(dataFile["FlowRate (kg/hr)"]/3600,denom) 
     return pfn
@@ -78,13 +79,13 @@ def fillCons(dataFile):
     mrt = dataFile["DetMRT"]
     vp = np.divide(np.multiply(D,dataFile["L/D Ratio"])/1000,mrt)
     F3num = 2*np.pi*vp
-    F3dem = np.multiply(dataFile["RPM (1/s)"]*np.pi/30,D/1000)
+    F3dem = np.multiply(dataFile["RPM"]*np.pi/30,D/1000)
     F3 = np.divide(F3num,F3dem)
     fill = np.divide(pfnCalc(dataFile),np.multiply(F1,np.multiply(F2,F3)))
     return fill
 
 def fillevel_lalith(dataFile):
-    screwConfig = dataFile[["Granulator diameter (mm)","L/D Ratio","n KE","nCE"]]
+    screwConfig = dataFile[["Granulator diameter (mm)","L/D Ratio","nKE","nCE"]]
     dGran = screwConfig["Granulator diameter (mm)"]
     freeVolume,maxVol = vFreeCalculation(dGran,screwConfig)
     num = np.multiply(freeVolume/1e9,np.multiply(dataFile["FlowRate (kg/hr)"]/3600,dataFile["DetMRT"]))
