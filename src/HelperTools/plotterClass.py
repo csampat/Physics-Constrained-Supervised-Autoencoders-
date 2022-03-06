@@ -26,7 +26,7 @@ class PlotterClass:
         fig=plt.figure()
         fig.set_size_inches(15, 15)
         plt.plot(history.history[name])
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         plt.plot(history.history[valname],'--')
         plt.title(modelname + name )
         plt.xlabel('epoch')
@@ -36,18 +36,18 @@ class PlotterClass:
 
     def history_plotter_compare(self,history1, history2, name, valname, modelname1, modelname2):
         plt.plot(history1.history[name])
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         plt.plot(history1.history[valname],'--')
         plt.plot(history2.history[name])
         plt.plot(history2.history[valname],'--')
         plt.title(name)
         plt.xlabel('epoch')
         plt.ylabel(name)
-        plt.legend([modelname1 + 'train',modelname1 +'test',modelname2 + 'train',modelname2 +'test',], loc='upper right')
-        plt.show()
+        plt.legend([modelname1 + ' train',modelname1 +' test',modelname2 + ' train',modelname2 +' test',], loc='upper right')
+    
     
     def history_plotter_compare3(self,history1, history2, history3, name, valname, modelname1, modelname2, modelname3):
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         plt.plot(history1.history[name])
         plt.plot(history1.history[valname],'--')
         plt.plot(history2.history[name])
@@ -104,7 +104,7 @@ class PlotterClass:
         plt.title(title + ' Parity Plot')
         plt.xlabel('True Values')
         plt.ylabel('Predicted Values')
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         # lims = [np.floor(min(test_data)), np.round(max(test_data),decimals=0)]
         lims = [0,1]
         plt.xlim(lims)
@@ -114,7 +114,7 @@ class PlotterClass:
     
     def parityPlot_dens(self,test_data,test_predictions,title):
         plt.axes(aspect='equal')
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         predicitons = test_predictions[0:10080]
         d = pd.DataFrame(test_data['Granule_density'])
         test = d.to_numpy().flatten()
@@ -130,7 +130,7 @@ class PlotterClass:
         plt.savefig(title+'_parityPlotDenisty.png')
         
     def expDataPlot(self,test_conv,test_labels,testIdx,sieveCut,legend):
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         for idx in testIdx:
             pltTest = np.transpose(np.array(test_labels.iloc[idx,1:8]))
             plt.figure()
@@ -143,7 +143,7 @@ class PlotterClass:
     
             
     def expDataPlot_compare(self,test_conv1, test_conv2, test_labels1, test_labels2, testIdx,sieveCut,legend):
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         for idx in testIdx:
             pltTest1 = np.transpose(np.array(test_labels1.iloc[idx,:7]))
             pltTest2 = np.transpose(np.array(test_labels2.iloc[idx,:7]))
@@ -159,7 +159,7 @@ class PlotterClass:
             
 
     def expDataPlot_compare3(self,test_conv1, test_conv2, test_conv3, test_labels1, testIdx,sieveCut,legend):
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         for idx in testIdx:
             pltTest1 = np.transpose(np.array(test_labels1.iloc[idx,:7]))
             # pltTest2 = np.transpose(np.array(test_labels2.iloc[idx,:7]))
@@ -209,7 +209,7 @@ class PlotterClass:
 
     def sensPlot_2(self,sobolDict, names, dictName):
         fig,ax = plt.subplots()
-        plt.rcParams.update({'font.size': 16})
+        plt.rcParams.update({'font.size': 18})
         x_pos = np.arange(len(names))
         ax.bar(x_pos+0.00,sobolDict['S1'],color='b',width=0.25,yerr=sobolDict['S1_conf'])
         ax.bar(x_pos+0.25,sobolDict['ST'],color='r',width=0.25,yerr=sobolDict['ST_conf'])

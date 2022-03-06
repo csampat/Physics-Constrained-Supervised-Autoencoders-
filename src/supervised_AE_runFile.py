@@ -44,16 +44,16 @@ def main():
     "encod_layer_actFcn"     : 'tanh',
     "decod_layer_actFcn"     : 'tanh',
     "decod_layer_actFcn_pre" : 'tanh',
-    "output_layer_actFcn"    : 'linear',
-    "sup_layer_actFcn"       : 'linear',
+    "output_layer_actFcn"    : 'tanh',
+    "sup_layer_actFcn"       : 'tanh',
     "optimizer_sup"          : Adam,
     "optimizer_unsup"        : Adadelta,
-    "learning_rate"          : 0.0004,
+    "learning_rate"          : 0.0008,
     "loss_sup"               : 'mae',
     "loss_unsup"             : 'mse',
     "n_epochs"               : 4000,
     "shuffle_flag"           : False,
-    "val_split"              : 0.4,
+    "val_split"              : 0.2,
     "verbose"                : 0
     }
 
@@ -83,7 +83,7 @@ def main():
     plt_obj.history_plotter(history_3lv_unc,'loss','val_loss',sae1_name)
     plt_obj.history_plotter(history_3lv_sae,'loss','val_loss',sae2_pc_name)
     plt_obj.history_plotter(history_3lv_mrt2,'loss','val_loss',sae3_pcmrt2_name)
-
+    plt_obj.history_plotter_compare(history_3lv_unc,history_3lv_sae,'loss','val_loss',sae1_name,sae2_pc_name)
 
     mrt_lim_flag = 2
     if(mrt_lim_flag==1):
